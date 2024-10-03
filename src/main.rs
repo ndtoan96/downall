@@ -15,7 +15,7 @@ use tracing::{info, instrument};
 #[derive(Debug, Clone, clap::Parser)]
 #[command(about, author, version)]
 struct Args {
-    #[arg(short, long, help = "output folder")]
+    #[arg(short, long, help = "output folder", default_value = ".")]
     output: PathBuf,
     #[arg(short, long, help = "Set referer header")]
     referer: Option<String>,
@@ -42,7 +42,11 @@ async fn main() -> Result<()> {
 
     for (i, handle) in handles.into_iter().enumerate() {
         let (name, data) = handle.await??;
-        fs::write(name.unwrap_or(format!("file_{}", i)), data).await?;
+        fs::write(
+            args.output.join(name.unwrap_or(format!("file_{}", i))),
+            data,
+        )
+        .await?;
     }
 
     Ok(())
