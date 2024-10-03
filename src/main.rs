@@ -37,6 +37,9 @@ async fn main() -> Result<()> {
             tokio::spawn(async move { download_url.retry(ExponentialBuilder::default()).await });
         handles.push(handle);
     }
+
+    fs::create_dir_all(&args.output).await?;
+
     for (i, handle) in handles.into_iter().enumerate() {
         let (name, data) = handle.await??;
         fs::write(name.unwrap_or(format!("file_{}", i)), data).await?;
