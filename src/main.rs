@@ -36,8 +36,11 @@ async fn main() -> Result<()> {
     for url in urls.into_iter() {
         let referer = args.referer.clone();
         let download_url = move || download_image(url.clone(), referer.clone());
-        let handle =
-            tokio::spawn(async move { download_url.retry(ExponentialBuilder::default()).await });
+        let handle = tokio::spawn(async move {
+            download_url
+                .retry(ExponentialBuilder::default().with_max_times(5))
+                .await
+        });
         handles.push(handle);
         if let Some(d) = args.delay {
             tokio::time::sleep(Duration::from_millis(d)).await;
