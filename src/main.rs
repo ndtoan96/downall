@@ -1,6 +1,7 @@
 use std::{
     fmt::Debug,
     path::{Path, PathBuf},
+    time::Duration,
 };
 
 use anyhow::Result;
@@ -10,13 +11,15 @@ use clap::Parser;
 use lazy_regex::{regex, regex_captures};
 use reqwest::{header::CONTENT_DISPOSITION, IntoUrl, Url};
 use tokio::fs;
-use tracing::{info, instrument};
+use tracing::{info, instrument, warn};
 
 #[derive(Debug, Clone, clap::Parser)]
 #[command(about, author, version)]
 struct Args {
     #[arg(short, long, help = "output folder", default_value = ".")]
     output: PathBuf,
+    #[arg(short, long, help = "delay each url request (in milisecond)")]
+    delay: Option<u64>,
     #[arg(short, long, help = "Set referer header")]
     referer: Option<String>,
     #[arg(help = "file contains urls")]
@@ -36,17 +39,25 @@ async fn main() -> Result<()> {
         let handle =
             tokio::spawn(async move { download_url.retry(ExponentialBuilder::default()).await });
         handles.push(handle);
+        if let Some(d) = args.delay {
+            tokio::time::sleep(Duration::from_millis(d)).await;
+        }
     }
 
     fs::create_dir_all(&args.output).await?;
 
     for (i, handle) in handles.into_iter().enumerate() {
-        let (name, data) = handle.await??;
-        fs::write(
-            args.output.join(name.unwrap_or(format!("file_{}", i))),
-            data,
-        )
-        .await?;
+        match handle.await {
+            Ok(Ok((name, data))) => {
+                fs::write(
+                    args.output.join(name.unwrap_or(format!("file_{}", i))),
+                    data,
+                )
+                .await?;
+            }
+            Ok(Err(e)) => warn!("{}", e),
+            Err(e) => warn!("{}", e),
+        }
     }
 
     Ok(())
